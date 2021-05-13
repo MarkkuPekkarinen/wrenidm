@@ -32,10 +32,22 @@ abspath() {
     fi
 }
 
-JAVA_VER=$(java -version 2>&1 | sed 's/.* version "\(.*\)\.\(.*\)\..*"/\1\2/; 1q')
+JAVA_VER=$(java -version 2>&1 | sed 's/.* version "\(.*\)\.\(.*\)\..*".*/\1\2/; 1q')
 if [ "$JAVA_VER" -lt 17 ]; then
   echo "Java version 1.7 or higher required";
   exit 1;
+fi
+
+# Enable reflective access to classloader for newer JDK versions
+# Workaround from felix issue - https://issues.apache.org/jira/browse/FELIX-5765
+
+COMPATIBILITY_OPTS=""
+if [ $JAVA_VER -gt 18 ]; then
+    COMPATIBILITY_OPTS="--add-opens=java.base/jdk.internal.loader=ALL-UNNAMED
+        --add-opens=java.base/java.lang=ALL-UNNAMED
+        --add-opens=java.base/java.lang.invoke=ALL-UNNAMED # Hides warning caused by Groovy 2.4.7, remove this once Groovy is upgraded (#97)
+        --add-opens=java.base/java.net=ALL-UNNAMED
+        --add-opens=java.base/java.util=ALL-UNNAMED"
 fi
 
 # clean up left over pid files if necessary
@@ -141,7 +153,7 @@ cd "$PRGDIR"
 
 # start in normal mode
 START_IDM() {
-(java "$LOGGING_CONFIG" $JAVA_OPTS $OPENIDM_OPTS \
+(java "$LOGGING_CONFIG" $JAVA_OPTS $COMPATIBILITY_OPTS $OPENIDM_OPTS \
         -Djava.endorsed.dirs="$JAVA_ENDORSED_DIRS" \
         -classpath "$CLASSPATH" \
         -Dopenidm.system.server.root="$OPENIDM_HOME" \
